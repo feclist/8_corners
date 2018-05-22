@@ -1,0 +1,24 @@
+# virtual environments
+venv
+
+# Python files
+*.pyc
+__pycache__
+
+# Python Notebook dot files
+.ipynb*
+
+# Secret environment settings
+.env
+env
+venv
+
+# Apple files
+.DS_Store
+
+# Pycharm IDEA
+.idea
+
+# Dev project files
+dev_script.py
+debug.log
