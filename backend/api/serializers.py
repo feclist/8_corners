@@ -29,11 +29,12 @@ class InstagramPostSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InstagramPost
-        fields = ('id', 'created_time', 'user_has_liked', 'likes', 'type', 'link', 'images', 'tags', 'location', 'user',
-                  'users_in_photo')
+        fields = ('id', 'created_time', 'user_has_liked', 'likes', 'type', 'link', 'user')
 
     def create(self, validated_data):
+        print(validated_data)
         post = InstagramPost.objects.create(**validated_data)
+        InstagramUser.objects.get(id=validated_data.get('user').id).posts.add(post)
 
         return post
 

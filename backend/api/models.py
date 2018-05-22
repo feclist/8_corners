@@ -20,6 +20,9 @@ class InstagramPost(models.Model):
     type = models.TextField()
     link = models.URLField()
 
+    # Relationship attributes
+    user = models.ForeignKey('InstagramUser', on_delete=models.DO_NOTHING)
+
 
 class InstagramUser(models.Model):
     # Base attributes
