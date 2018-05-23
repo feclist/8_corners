@@ -1,6 +1,6 @@
 from django.contrib.auth.models import User, Group
-from backend.api.models import InstagramUser, InstagramPost
-from rest_framework import serializers
+from backend.api.models import InstagramUser, InstagramPost, InstagramTag, InstagramLocation
+from rest_framework import serializers, validators
 import logging
 import sys
 from rest_framework.exceptions import ErrorDetail, ValidationError
@@ -21,20 +21,60 @@ class GroupSerializer(serializers.HyperlinkedModelSerializer):
 class InstagramUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = InstagramUser
-        fields = ('id', 'username', 'profile_picture', 'full_name', 'bio', 'website', 'is_business', 'counts_media',
-                  'counts_follows', 'counts_followed_by')
+        fields = (
+        'instagram_id', 'username', 'profile_picture', 'full_name', 'bio', 'website', 'is_business', 'counts_media',
+        'counts_follows', 'counts_followed_by')
+
+
+class InstagramTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InstagramTag
+        fields = '__all__'
+        extra_kwargs = {
+            'name': {
+                'validators': [],
+            }
+        }
+
+
+class InstagramLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InstagramLocation
+        fields = '__all__'
+        extra_kwargs = {
+            'instagram_id': {
+                'validators': [],
+            }
+        }
 
 
 class InstagramPostSerializer(serializers.ModelSerializer):
+    tags = InstagramTagSerializer(many=True)
+    user = serializers.SlugRelatedField(
+        slug_field='instagram_id',
+        queryset=InstagramUser.objects.all()
+    )
+    location = InstagramLocationSerializer()
 
     class Meta:
         model = InstagramPost
-        fields = ('id', 'created_time', 'user_has_liked', 'likes', 'type', 'link', 'user')
+        fields = ('instagram_id', 'created_time', 'user_has_liked', 'likes', 'type', 'link', 'user', 'tags', 'location')
 
     def create(self, validated_data):
-        print(validated_data)
+        tags = validated_data.pop('tags')
+        location = validated_data.pop('location')
         post = InstagramPost.objects.create(**validated_data)
-        InstagramUser.objects.get(id=validated_data.get('user').id).posts.add(post)
+
+        # Add post to user posts set
+        validated_data.get('user').posts.add(post)
+
+        loc, _ = InstagramLocation.objects.get_or_create(**location)
+        post.location = loc
+        post.save()
+
+        for tag in tags:
+            t, _ = InstagramTag.objects.get_or_create(**tag)
+            post.tags.add(t)
 
         return post
 
