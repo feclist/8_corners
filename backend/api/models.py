@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.db import models
 from django.dispatch import receiver
 from rest_framework.authtoken.models import Token
@@ -22,6 +22,28 @@ class InstagramTag(models.Model):
     name = models.TextField(unique=True)
 
 
+class InstagramImages(models.Model):
+    thumbnail_width = models.IntegerField()
+    thumbnail_height = models.IntegerField()
+    thumbnail_url = models.URLField()
+    low_res_width = models.IntegerField()
+    low_res_height = models.IntegerField()
+    low_res_url = models.URLField()
+    standard_res_width = models.IntegerField()
+    standard_res_height = models.IntegerField()
+    standard_res_url = models.URLField()
+
+
+class InstagramCaption(models.Model):
+    # Base attributes
+    instagram_id = models.TextField(unique=True)
+    text = models.TextField()
+    created_time = models.DateTimeField()
+
+    # Relationship attributes
+    user = models.ForeignKey('InstagramUser', on_delete=models.CASCADE)
+
+
 class InstagramPost(models.Model):
     # Base attributes
     instagram_id = models.TextField(unique=True)
@@ -30,11 +52,25 @@ class InstagramPost(models.Model):
     likes = models.IntegerField()
     type = models.TextField()
     link = models.URLField()
+    comments = models.IntegerField()
 
     # Relationship attributes
-    user = models.ForeignKey('InstagramUser', on_delete=models.DO_NOTHING)
+    user = models.ForeignKey('InstagramUser', on_delete=models.CASCADE)
     tags = models.ManyToManyField(InstagramTag, blank=True)
     location = models.ForeignKey(InstagramLocation, on_delete=models.DO_NOTHING, blank=True, null=True)
+    images = models.ForeignKey(InstagramImages, on_delete=models.DO_NOTHING, null=True)
+    caption = models.ForeignKey(InstagramCaption, on_delete=models.DO_NOTHING, null=True)
+
+    def delete(self, *args, **kwargs):
+        img = self.images
+        cap = self.caption
+        self.images = None
+        self.caption = None
+        self.save()
+
+        img.delete()
+        cap.delete()
+        return super().delete(*args, **kwargs)
 
 
 class InstagramUser(models.Model):
@@ -52,6 +88,7 @@ class InstagramUser(models.Model):
 
     # Relationship attributes
     posts = models.ManyToManyField(InstagramPost)
+
 
 # class InstagramImages(models.Model):
 #     thumbnail_width = models.IntegerField()
