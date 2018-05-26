@@ -22,3 +22,17 @@ def get_nested_value(dict, attributes):
 
 def unix_to_datetime_string(date):
     return datetime.datetime.fromtimestamp(int(date)).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def get_object_or_none(model, **kwargs):
+    """
+    Helper method to retrieve objects from database
+    and return None if doesn't exist
+    :param model: The model the object belongs to
+    :param kwargs: The get function arguments
+    :return: Model Instance or None
+    """
+    try:
+        return model.objects.get(**kwargs)
+    except model.DoesNotExist:
+        return None

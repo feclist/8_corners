@@ -12,7 +12,7 @@ def create_auth_token(sender, instance=None, created=False, **kwargs):
 
 
 class InstagramLocation(models.Model):
-    instagram_id = models.IntegerField(unique=True)
+    instagram_id = models.BigIntegerField(unique=True)
     latitude = models.FloatField()
     longitude = models.FloatField()
     name = models.TextField()
@@ -75,7 +75,7 @@ class InstagramPost(models.Model):
 
 class InstagramUser(models.Model):
     # Base attributes
-    instagram_id = models.CharField(max_length=20, unique=True)
+    instagram_id = models.TextField(unique=True)
     username = models.TextField()
     profile_picture = models.TextField()
     full_name = models.TextField()

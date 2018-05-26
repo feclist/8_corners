@@ -5,6 +5,21 @@ from rest_framework import serializers
 
 from backend.api.utils import get_nested_value, unix_to_datetime_string
 
+from django.core.exceptions import ObjectDoesNotExist
+from django.utils.encoding import smart_text
+from rest_framework.utils import model_meta
+
+
+class CreatableSlugRelatedField(serializers.SlugRelatedField):
+
+    def to_internal_value(self, data):
+        try:
+            return self.get_queryset().get_or_create(**{self.slug_field: data})[0]
+        except ObjectDoesNotExist:
+            self.fail('does_not_exist', slug_name=self.slug_field, value=smart_text(data))
+        except (TypeError, ValueError):
+            self.fail('invalid')
+
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
@@ -116,6 +131,11 @@ class InstagramCaptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = InstagramCaption
         fields = '__all__'
+        extra_kwargs = {
+            'instagram_id': {
+                'validators': [],
+            }
+        }
 
     def to_internal_value(self, data):
         data['created_time'] = unix_to_datetime_string(data['created_time'])
@@ -126,7 +146,11 @@ class InstagramCaptionSerializer(serializers.ModelSerializer):
 
 
 class InstagramPostSerializer(serializers.ModelSerializer):
-    tags = InstagramTagSerializer(many=True)
+    tags = CreatableSlugRelatedField(
+        many=True,
+        slug_field='name',
+        queryset=InstagramTag.objects.all()
+    )
     user = serializers.SlugRelatedField(
         slug_field='instagram_id',
         queryset=InstagramUser.objects.all()
@@ -141,7 +165,10 @@ class InstagramPostSerializer(serializers.ModelSerializer):
                   'images', 'caption', 'comments')
 
     def to_internal_value(self, data):
+        data['instagram_id'] = data['id']
+        del data['id']
         data['comments'] = data['comments']['count']
+        data['likes'] = data['likes']['count']
         data['user'] = data['user']['id']
         data['created_time'] = unix_to_datetime_string(data['created_time'])
         return super().to_internal_value(data=data)
@@ -156,52 +183,33 @@ class InstagramPostSerializer(serializers.ModelSerializer):
             }
         )
         post = InstagramPost.objects.create(**validated_data)
-        post.tags.set([InstagramTag.objects.get_or_create(**tag)[0] for tag in tags])
+        post.tags.set(tags)
 
         # Add post to user posts set
         validated_data.get('user').posts.add(post)
 
         return post
 
-# class InstagramTagSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = InstagramTag
-#         fields = ('name',)
-#
-#
-# class InstagramLocationSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = InstagramLocation
-#         fields = ('id', 'latitude', 'longitude', 'name')
-#
-#
-# class InstagramImagesSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = InstagramImages
-#         fields = '__all__'
-#
-#
-# class InstagramPostSerializer(serializers.ModelSerializer):
-#     images = serializers.PrimaryKeyRelatedField(read_only=True)
-#     tags = InstagramTagSerializer(many=True)
-#     user = serializers.PrimaryKeyRelatedField(read_only=True)
-#     users_in_photo = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
-#     location = InstagramLocationSerializer()
-#
-#     class Meta:
-#         model = InstagramPost
-#         fields = ('id', 'created_time', 'user_has_liked', 'likes', 'type', 'link', 'images', 'tags', 'location', 'user',
-#                   'users_in_photo')
-#
-#     def create(self, validated_data):
-#         # images_data = validated_data.pop('images')
-#         tags = validated_data.pop('tags')
-#         location = validated_data.pop('location')
-#         post = InstagramPost.objects.create(**validated_data)
-#
-#         for tag in tags:
-#             InstagramTag.objects.create(post=post, **tag)
-#
-#         InstagramLocation.objects.create(post=post, **location)
-#
-#         return post
+    def update(self, instance, validated_data):
+        validated_data.update(
+            {
+                'caption': InstagramCaption.objects.get_or_create(**validated_data.pop('caption'))[0],
+                'images': InstagramImages.objects.get_or_create(**validated_data.pop('images'))[0],
+                'location': InstagramLocation.objects.get_or_create(**validated_data.pop('location'))[0]
+            }
+        )
+        info = model_meta.get_field_info(instance)
+
+        # Simply set each attribute on the instance, and then save it.
+        # Note that unlike `.create()` we don't need to treat many-to-many
+        # relationships as being a special case. During updates we already
+        # have an instance pk for the relationships to be associated with.
+        for attr, value in validated_data.items():
+            if attr in info.relations and info.relations[attr].to_many:
+                field = getattr(instance, attr)
+                field.set(value)
+            else:
+                setattr(instance, attr, value)
+        instance.save()
+
+        return instance

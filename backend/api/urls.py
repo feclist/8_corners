@@ -1,7 +1,6 @@
 from django.conf.urls import url
 from rest_framework.authtoken import views as drf_views
 from backend.api import views
-from rest_framework.urlpatterns import format_suffix_patterns
 from rest_framework import routers
 from django.urls import path, include, re_path
 
